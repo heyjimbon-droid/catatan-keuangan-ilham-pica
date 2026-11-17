@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catatan Keuangan</title>
+<style>
+  :root { --hijau:#16a34a; --merah:#dc2626; --biru:#2563eb; --abu:#64748b; --bg:#f1f5f9; --kartu:#fff; --garis:#e2e8f0; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:#0f172a; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.4rem; margin: 8px 0 16px; }
+  .kartu { background:var(--kartu); border-radius:12px; padding:16px; margin-bottom:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .ringkasan { display:grid; grid-template-columns: repeat(3,1fr); gap:10px; }
+  .ringkasan div { background:var(--kartu); border-radius:12px; padding:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .ringkasan small { color:var(--abu); display:block; margin-bottom:4px; }
+  .ringkasan b { font-size:1rem; word-break:break-word; }
+  .masuk { color:var(--hijau); } .keluar { color:var(--merah); }
+  label { display:block; font-size:.85rem; color:var(--abu); margin:10px 0 4px; }
+  input, select, textarea, button { font:inherit; }
+  input, select, textarea { width:100%; padding:10px; border:1px solid var(--garis); border-radius:8px; background:#fff; }
+  .baris { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  button { padding:10px 16px; border:0; border-radius:8px; cursor:pointer; background:var(--biru); color:#fff; font-weight:600; }
+  button.sekunder { background:#e2e8f0; color:#0f172a; }
+  button.kecil { padding:6px 10px; font-size:.8rem; }
+  button.bahaya { background:var(--merah); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .aksi { display:flex; gap:8px; margin-top:14px; }
+  .filter { display:flex; gap:10px; align-items:end; margin-bottom:10px; }
+  .filter > div { flex:1; }
+  .item { display:flex; justify-content:space-between; gap:10px; padding:12px 0; border-bottom:1px solid var(--garis); }
+  .item:last-child { border-bottom:0; }
+  .item .kiri small { color:var(--abu); display:block; }
+  .item .kanan { text-align:right; white-space:nowrap; }
+  .item .tombol { margin-top:6px; display:flex; gap:6px; justify-content:flex-end; }
+  .kosong { text-align:center; color:var(--abu); padding:20px 0; }
+  #pesan { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:#0f172a; color:#fff; padding:10px 16px; border-radius:8px; display:none; max-width:90%; z-index:10; }
+  #pesan.error { background:var(--merah); }
+  .jenis { display:flex; gap:8px; }
+  .jenis label { flex:1; margin:0; padding:10px; border:1px solid var(--garis); border-radius:8px; text-align:center; cursor:pointer; color:#0f172a; }
+  .jenis input { display:none; }
+  .jenis input:checked + span { font-weight:700; }
+  .jenis label:has(input[value=pemasukan]:checked) { background:#dcfce7; border-color:var(--hijau); }
+  .jenis label:has(input[value=pengeluaran]:checked) { background:#fee2e2; border-color:var(--merah); }
+  .jenis.terkunci label { opacity:.6; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>💰 Catatan Keuangan</h1>
+
+  <div class="ringkasan">
+    <div><small>Pemasukan</small><b class="masuk" id="totMasuk">Rp 0</b></div>
+    <div><small>Pengeluaran</small><b class="keluar" id="totKeluar">Rp 0</b></div>
+    <div><small>Saldo</small><b id="totSaldo">Rp 0</b></div>
+  </div>
+
+  <div class="kartu" style="margin-top:16px">
+    <h3 id="judulForm" style="margin:0 0 4px">Tambah Transaksi</h3>
+    <form id="form">
+      <div class="jenis" id="jenisBox" style="margin-top:10px">
+        <label><input type="radio" name="jenis" value="pengeluaran" checked><span>Pengeluaran</span></label>
+        <label><input type="radio" name="jenis" value="pemasukan"><span>Pemasukan</span></label>
+      </div>
+      <div class="baris">
+        <div><label for="tanggal">Tanggal</label><input type="date" id="tanggal" required></div>
+        <div><label for="nominal">Nominal (Rp)</label><input type="number" id="nominal" min="1" step="any" inputmode="numeric" required></div>
+      </div>
+      <label for="kategori">Kategori</label>
+      <input type="text" id="kategori" list="daftarKategori" maxlength="100" placeholder="mis. Makan, Gaji">
+      <datalist id="daftarKategori"></datalist>
+      <label for="catatan">Catatan</label>
+      <textarea id="catatan" rows="2" maxlength="500" placeholder="opsional"></textarea>
+      <div class="aksi">
+        <button type="submit" id="btnSimpan">Simpan</button>
+        <button type="button" class="sekunder" id="btnBatal" style="display:none">Batal</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="kartu">
+    <div class="filter">
+      <div><label for="bulan" style="margin-top:0">Bulan</label><input type="month" id="bulan"></div>
+      <div><label for="filterJenis" style="margin-top:0">Jenis</label>
+        <select id="filterJenis">
+          <option value="semua">Semua</option>
+          <option value="pemasukan">Pemasukan</option>
+          <option value="pengeluaran">Pengeluaran</option>
+        </select>
+      </div>
+      <button class="sekunder" id="btnSemuaBulan" type="button">Semua</button>
+    </div>
+    <div id="daftar"><div class="kosong">Memuat data…</div></div>
+  </div>
+</div>
+<div id="pesan"></div>
+
+<script>
+// ===================== PENGATURAN (WAJIB DIISI) =====================
+// 1. URL Web App dari Apps Script (Deploy > Manage deployments > Web app URL), berakhiran /exec
+const API_URL = 'GANTI_DENGAN_URL_WEB_APP_KAMU';
+// 2. Token HARUS sama persis dengan CONFIG.TOKEN di Code.gs
+const TOKEN = 'GANTI_DENGAN_TOKEN_BARU_KAMU';
+// ====================================================================
+
+let semuaItem = [];
+let sedangEdit = null; // item yang sedang diedit
+
+const $ = (id) => document.getElementById(id);
+const rupiah = (n) => 'Rp ' + new Intl.NumberFormat('id-ID').format(n);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function hariIni() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+function pesan(teks, error) {
+  const el = $('pesan');
+  el.textContent = teks;
+  el.className = error ? 'error' : '';
+  el.style.display = 'block';
+  clearTimeout(pesan._t);
+  pesan._t = setTimeout(() => el.style.display = 'none', 3500);
+}
+
+// ---------- Komunikasi dengan backend ----------
+async function panggil(payload) {
+  // POST dengan text/plain supaya tidak kena masalah CORS di Apps Script
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ ...payload, token: TOKEN })
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Terjadi kesalahan.');
+  return json.data;
+}
+
+async function muatData() {
+  try {
+    const data = await panggil({ action: 'list' });
+    semuaItem = data.items;
+    // isi saran kategori
+    const kategori = [...new Set([...data.categories.pemasukan, ...data.categories.pengeluaran])];
+    $('daftarKategori').innerHTML = kategori.map(k => `<option value="${esc(k)}">`).join('');
+    tampilkan();
+  } catch (e) {
+    $('daftar').innerHTML = '<div class="kosong">Gagal memuat data.</div>';
+    pesan(e.message, true);
+  }
+}
+
+// ---------- Tampilan ----------
+function tampilkan() {
+  const bulan = $('bulan').value;      // "2026-11" atau ""
+  const jenis = $('filterJenis').value;
+
+  const tersaring = semuaItem
+    .filter(i => !bulan || i.tanggal.startsWith(bulan))
+    .filter(i => jenis === 'semua' || i.jenis === jenis)
+    .sort((a, b) => b.tanggal.localeCompare(a.tanggal) || b.id - a.id);
+
+  // Ringkasan dihitung dari filter bulan saja (bukan filter jenis)
+  const untukTotal = semuaItem.filter(i => !bulan || i.tanggal.startsWith(bulan));
+  const masuk = untukTotal.filter(i => i.jenis === 'pemasukan').reduce((s, i) => s + i.nominal, 0);
+  const keluar = untukTotal.filter(i => i.jenis === 'pengeluaran').reduce((s, i) => s + i.nominal, 0);
+  $('totMasuk').textContent = rupiah(masuk);
+  $('totKeluar').textContent = rupiah(keluar);
+  const saldo = masuk - keluar;
+  $('totSaldo').textContent = rupiah(saldo);
+  $('totSaldo').className = saldo < 0 ? 'keluar' : 'masuk';
+
+  if (!tersaring.length) {
+    $('daftar').innerHTML = '<div class="kosong">Belum ada transaksi.</div>';
+    return;
+  }
+  $('daftar').innerHTML = tersaring.map(i => `
+    <div class="item">
+      <div class="kiri">
+        <b>${esc(i.kategori) || '(tanpa kategori)'}</b>
+        <small>${esc(i.tanggal)}${i.catatan ? ' · ' + esc(i.catatan) : ''}</small>
+      </div>
+      <div class="kanan">
+        <b class="${i.jenis === 'pemasukan' ? 'masuk' : 'keluar'}">${i.jenis === 'pemasukan' ? '+' : '−'} ${rupiah(i.nominal)}</b>
+        <div class="tombol">
+          <button class="kecil sekunder" data-aksi="edit" data-jenis="${i.jenis}" data-id="${i.id}">Edit</button>
+          <button class="kecil bahaya" data-aksi="hapus" data-jenis="${i.jenis}" data-id="${i.id}">Hapus</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ---------- Form ----------
+function resetForm() {
+  sedangEdit = null;
+  $('form').reset();
+  $('tanggal').value = hariIni();
+  $('judulForm').textContent = 'Tambah Transaksi';
+  $('btnBatal').style.display = 'none';
+  $('jenisBox').classList.remove('terkunci');
+}
+
+$('form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = $('btnSimpan');
+  btn.disabled = true;
+  try {
+    const data = {
+      jenis: document.querySelector('input[name=jenis]:checked').value,
+      tanggal: $('tanggal').value,
+      nominal: $('nominal').value,
+      kategori: $('kategori').value,
+      catatan: $('catatan').value
+    };
+    if (sedangEdit) {
+      await panggil({ action: 'update', id: sedangEdit.id, sig: sedangEdit.sig, ...data, jenis: sedangEdit.jenis });
+      pesan('Transaksi diperbarui ✔');
+    } else {
+      await panggil({ action: 'add', ...data });
+      pesan('Transaksi disimpan ✔');
+    }
+    resetForm();
+    await muatData();
+  } catch (err) {
+    pesan(err.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$('btnBatal').addEventListener('click', resetForm);
+
+// ---------- Tombol edit / hapus ----------
+$('daftar').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-aksi]');
+  if (!btn) return;
+  const item = semuaItem.find(i => i.id == btn.dataset.id && i.jenis === btn.dataset.jenis);
+  if (!item) return;
+
+  if (btn.dataset.aksi === 'edit') {
+    sedangEdit = item;
+    document.querySelector(`input[name=jenis][value=${item.jenis}]`).checked = true;
+    $('jenisBox').classList.add('terkunci'); // jenis tidak bisa diubah saat edit
+    $('tanggal').value = item.tanggal;
+    $('nominal').value = item.nominal;
+    $('kategori').value = item.kategori;
+    $('catatan').value = item.catatan;
+    $('judulForm').textContent = 'Edit Transaksi';
+    $('btnBatal').style.display = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } else if (btn.dataset.aksi === 'hapus') {
+    if (!confirm(`Hapus transaksi ${rupiah(item.nominal)} (${item.kategori || 'tanpa kategori'})?`)) return;
+    btn.disabled = true;
+    try {
+      await panggil({ action: 'delete', jenis: item.jenis, id: item.id, sig: item.sig });
+      pesan('Transaksi dihapus ✔');
+      if (sedangEdit) resetForm();
+      await muatData();
+    } catch (err) {
+      pesan(err.message, true);
+      btn.disabled = false;
+    }
+  }
+});
+
+// ---------- Filter ----------
+$('bulan').addEventListener('change', tampilkan);
+$('filterJenis').addEventListener('change', tampilkan);
+$('btnSemuaBulan').addEventListener('click', () => { $('bulan').value = ''; tampilkan(); });
+
+// ---------- Mulai ----------
+$('bulan').value = hariIni().slice(0, 7);
+resetForm();
+if (API_URL.startsWith('GANTI_') || TOKEN.startsWith('GANTI_')) {
+  $('daftar').innerHTML = '<div class="kosong">Isi dulu API_URL dan TOKEN di bagian atas script.</div>';
+} else {
+  muatData();
+}
+</script>
+</body>
+</html>
